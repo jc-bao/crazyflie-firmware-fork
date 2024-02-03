@@ -14,18 +14,19 @@ NOTEs: the unit use here
 */
 
 // Dynamic parameters
-static float m = 0.0411;
+// static float m = 0.0411;
+static float m = 0.027f;
 static float massThrust = 85000;                                 // emperical value for hovering.
 
 // PID parameters
-static float kp_wxy = 750.0;
-static float kd_wxy = 8.0;
-static float ki_wxy = 500.0;
+static float kp_wxy = 500.0;
+static float kd_wxy = 4.0;
+static float ki_wxy = 100.0;
 static float i_range_wxy = 1.0;
 
-static float kp_wz = 400.0;
+static float kp_wz = 200.0;
 static float kd_wz = 2.0;
-static float ki_wz = 200.0;
+static float ki_wz = 100.0;
 static float i_range_wz = 1.0;
 
 static float kp_accz = 1.0;
@@ -98,8 +99,8 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
 {
 //   set to custom power distribution controller
 //   control->controlMode = controlModeForce;
-//   control->controlMode = controlModeForceTorque;
-  control->controlMode = controlModeLegacy;
+  // control->controlMode = controlModeForceTorque;
+//   control->controlMode = controlModeLegacy;
 
   float dt;
   if (!RATE_DO_EXECUTE(ATTITUDE_RATE, tick))
@@ -157,6 +158,10 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   float alphay_des = kp_wxy * p_error_wy + kd_wxy * d_error_wy + ki_wxy * i_error_wy;
   float alphaz_des = kp_wz * p_error_wz + kd_wz * d_error_wz + ki_wz * i_error_wz;
   float az_thrust_des = kp_accz * p_error_accz + ki_accz * i_error_accz + 9.81f;
+  
+  // printf("p_error_wy: %.3f\n", p_error_wy*kp_wxy);
+  // printf("d_error_wy: %.3f\n", d_error_wy*kd_wxy);
+  // printf("i_error_wy: %.3f\n", i_error_wy*ki_wxy);
 
   // convert into torque and thrust
   struct vec I = {16.571710e-6, 16.571710e-6, 29.261652e-6}; // moment of inertia
@@ -166,41 +171,67 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   torquey_des = alphay_des * I.y + wy * (wz * I.x - wx * I.z);
   torquez_des = alphaz_des * I.z + wz * (wx * I.y - wy * I.x);
   thrust_des = m * az_thrust_des;
+
+  // clip torque and thrust
+  // float max_torque = 0.7f * 0.046f * 0.5f;
+  // torquex_des = clamp(torquex_des, -max_torque, max_torque);
+  // torquey_des = clamp(torquey_des, -max_torque, max_torque);
+  // torquez_des = clamp(torquez_des, -max_torque, max_torque);
+
+//   printf("az_thrust_des: %f\n", az_thrust_des);
+
   // torquex_des = clamp(torquex_des, -1e-2, 1e-2);
   // torquey_des = clamp(torquey_des, -1e-2, 1e-2);
   // torquez_des = clamp(torquez_des, -1e-2, 1e-2);
   // thrust_des = clamp(thrust_des, 0.0, 0.19);
 
   // Sending values to the motor
-  float arm = 0.046f * 0.707f;
-  float torquex_pwm = 0.25f / arm * torquex_des * 5.188f * 65535.0f;
-  float torquey_pwm = 0.25f / arm * torquey_des * 5.188f * 65535.0f;
-  float torquez_pwm = 0.25f * torquez_des / 0.005964552f * 65535.0f;
-  float thrust_pwm = 0.25f * thrust_des * 5.188f * 65535.0f;
-  // float thrust_pwm = 0.041f * (setpoint->acceleration.z) * massThrust; 
-  control->roll = clamp(torquex_pwm, -32000, 32000);
-  control->pitch = clamp(torquey_pwm, -32000, 32000);
-  control->yaw = clamp(-torquez_pwm, -32000, 32000);
-  if (setpoint->mode.z == modeDisable) {
-    control->thrust = setpoint->thrust;
-  } else {
-    control->thrust = thrust_pwm;
-  }
-  if (control->thrust < 0) {
-    control->thrust = 0;
-    control->roll = 0;
-    control->pitch = 0;
-    control->yaw = 0;
-    controllerINDIReset();
-  }
-  // control->tau_x = torquex_des;
-  // control->tau_y = torquey_des;
-  // control->tau_z = torquez_des;
+  // float arm = 0.046f * 0.707f;
+  // float torquex_pwm = 0.25f / arm * torquex_des * 5.188f * 65535.0f;
+  // float torquey_pwm = 0.25f / arm * torquey_des * 5.188f * 65535.0f;
+  // float torquez_pwm = 0.25f * torquez_des / 0.005964552f * 65535.0f;
+  // float thrust_pwm = 0.25f * thrust_des * 5.188f * 65535.0f;
+  // // float thrust_pwm = 0.041f * (setpoint->acceleration.z) * massThrust; 
+  // control->roll = clamp(torquex_pwm, -32000, 32000);
+  // control->pitch = clamp(torquey_pwm, -32000, 32000);
+  // control->yaw = clamp(-torquez_pwm, -32000, 32000);
   // if (setpoint->mode.z == modeDisable) {
-  //   control->T = setpoint->thrust;
+  //   control->thrust = setpoint->thrust;
   // } else {
-  //   control->T = thrust_des;
+  //   control->thrust = thrust_pwm;
   // }
+  // if (control->thrust < 0) {
+  //   control->thrust = 0;
+  //   control->roll = 0;
+  //   control->pitch = 0;
+  //   control->yaw = 0;
+  //   controllerINDIReset();
+  // }
+  // control->controlMode = controlModeLegacy;
+
+//   control->tau_x = torquex_des;
+//   control->tau_y = torquey_des;
+//   control->tau_z = torquez_des;
+//   if (setpoint->mode.z == modeDisable) {
+//     control->T = setpoint->thrust;
+//   } else {
+//     control->T = thrust_des;
+//   }
+
+  // NOTE: this only applies in simulation
+  thrust_des = m * az_des; 
+  if (setpoint->mode.z == modeDisable) {
+    control->thrustSi = 0.0f;
+    control->torque[0] =  0.0f;
+    control->torque[1] =  0.0f;
+    control->torque[2] =  0.0f;
+  } else {
+    control->thrustSi = thrust_des;
+    control->torque[0] = torquex_des;
+    control->torque[1] = -torquey_des; // NOTE: if use force torque mode, the sign of torquey is opposite
+    control->torque[2] = torquez_des;
+  }
+  control->controlMode = controlModeForceTorque;
 }
 
 PARAM_GROUP_START(ctrlRwik)

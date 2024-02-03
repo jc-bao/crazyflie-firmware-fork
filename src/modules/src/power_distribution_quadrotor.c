@@ -46,8 +46,11 @@ static float armLength = ARM_LENGTH; // m
 static float thrustToTorque = 0.005964552f;
 
 // thrust = a * pwm^2 + b * pwm
-static float pwmToThrustA = 0.091492681f;
-static float pwmToThrustB = 0.067673604f;
+// static float pwmToThrustA = 0.091492681f;
+// static float pwmToThrustB = 0.067673604f;
+static float pwmToThrustA = 0.071627f;
+static float pwmToThrustB = 0.056576f;
+static float pwmToThrustC = 0.009810f;
 
 int powerDistributionMotorType(uint32_t id)
 {
@@ -108,8 +111,9 @@ static void powerDistributionForceTorque(const control_t *control, motors_thrust
       motorForce = 0.0f;
     }
 
-    float motor_pwm = (-pwmToThrustB + sqrtf(pwmToThrustB * pwmToThrustB + 4.0f * pwmToThrustA * motorForce)) / (2.0f * pwmToThrustA);
+    float motor_pwm = (-pwmToThrustB + sqrtf(pwmToThrustB * pwmToThrustB + 4.0f * pwmToThrustA * (motorForce - pwmToThrustC))) / (2.0f * pwmToThrustA);
     motorThrustUncapped->list[motorIndex] = motor_pwm * UINT16_MAX;
+
   }
 }
 
