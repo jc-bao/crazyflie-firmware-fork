@@ -16,22 +16,23 @@ NOTEs: the unit use here
 // Dynamic parameters
 // static float m = 0.0411;
 static float m = 0.027f;
-static float massThrust = 85000;                                 // emperical value for hovering.
+static float massThrust = 85000; // emperical value for hovering.
+static float max_alpha = 200.0;  // maximum angular acceleration
 
 // PID parameters
-static float kp_wxy = 500.0;
-static float kd_wxy = 4.0;
-static float ki_wxy = 100.0;
+static float kp_wxy = 50.0; //500.0;
+static float kd_wxy = 0.3; //4.0;
+static float ki_wxy = 5.0; //100.0;
 static float i_range_wxy = 1.0;
 
-static float kp_wz = 200.0;
-static float kd_wz = 2.0;
-static float ki_wz = 100.0;
+static float kp_wz = 20.0; //200.0;
+static float kd_wz = 0.1; //2.0;
+static float ki_wz = 2.0; //100.0;
 static float i_range_wz = 1.0;
 
 static float kp_accz = 1.0;
 static float ki_accz = 0.2;
-static float i_range_accz = 0.2;
+static float i_range_accz = 0.5;
 
 // PID intermediate variables
 static float p_error_wx = 0.0;
@@ -97,10 +98,10 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
                     const state_t *state,
                     const uint32_t tick)
 {
-//   set to custom power distribution controller
-//   control->controlMode = controlModeForce;
+  //   set to custom power distribution controller
+  //   control->controlMode = controlModeForce;
   // control->controlMode = controlModeForceTorque;
-//   control->controlMode = controlModeLegacy;
+  //   control->controlMode = controlModeLegacy;
 
   float dt;
   if (!RATE_DO_EXECUTE(ATTITUDE_RATE, tick))
@@ -126,7 +127,7 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   p_error_wx = wx_des - wx;
   p_error_wy = wy_des - wy;
   p_error_wz = wz_des - wz;
-  p_error_accz = az_des - az;
+  // p_error_accz = az_des - az;
 
   i_error_wx += p_error_wx * dt;
   i_error_wx = clamp(i_error_wx, -i_range_wxy, i_range_wxy);
@@ -134,8 +135,8 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   i_error_wy = clamp(i_error_wy, -i_range_wxy, i_range_wxy);
   i_error_wz += p_error_wz * dt;
   i_error_wz = clamp(i_error_wz, -i_range_wz, i_range_wz);
-  i_error_accz += p_error_accz * dt;
-  i_error_accz = clamp(i_error_accz, -i_range_accz, i_range_accz);
+  // i_error_accz += p_error_accz * dt;
+  // i_error_accz = clamp(i_error_accz, -i_range_accz, i_range_accz);
 
   float new_d_error_wx = (p_error_wx - prev_p_error_wx) / dt;
   float new_d_error_wy = (p_error_wy - prev_p_error_wy) / dt;
@@ -157,8 +158,12 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   float alphax_des = kp_wxy * p_error_wx + kd_wxy * d_error_wx + ki_wxy * i_error_wx;
   float alphay_des = kp_wxy * p_error_wy + kd_wxy * d_error_wy + ki_wxy * i_error_wy;
   float alphaz_des = kp_wz * p_error_wz + kd_wz * d_error_wz + ki_wz * i_error_wz;
-  float az_thrust_des = kp_accz * p_error_accz + ki_accz * i_error_accz + 9.81f;
-  
+  // float az_thrust_des = kp_accz * az_des + ki_accz * i_error_accz;
+
+  alphax_des = clamp(alphax_des, -max_alpha, max_alpha);
+  alphay_des = clamp(alphay_des, -max_alpha, max_alpha);
+  alphaz_des = clamp(alphaz_des, -max_alpha, max_alpha);
+
   // printf("p_error_wy: %.3f\n", p_error_wy*kp_wxy);
   // printf("d_error_wy: %.3f\n", d_error_wy*kd_wxy);
   // printf("i_error_wy: %.3f\n", i_error_wy*ki_wxy);
@@ -178,7 +183,7 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   // torquey_des = clamp(torquey_des, -max_torque, max_torque);
   // torquez_des = clamp(torquez_des, -max_torque, max_torque);
 
-//   printf("az_thrust_des: %f\n", az_thrust_des);
+  //   printf("az_thrust_des: %f\n", az_thrust_des);
 
   // torquex_des = clamp(torquex_des, -1e-2, 1e-2);
   // torquey_des = clamp(torquey_des, -1e-2, 1e-2);
@@ -191,7 +196,7 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   // float torquey_pwm = 0.25f / arm * torquey_des * 5.188f * 65535.0f;
   // float torquez_pwm = 0.25f * torquez_des / 0.005964552f * 65535.0f;
   // float thrust_pwm = 0.25f * thrust_des * 5.188f * 65535.0f;
-  // // float thrust_pwm = 0.041f * (setpoint->acceleration.z) * massThrust; 
+  // // float thrust_pwm = 0.041f * (setpoint->acceleration.z) * massThrust;
   // control->roll = clamp(torquex_pwm, -32000, 32000);
   // control->pitch = clamp(torquey_pwm, -32000, 32000);
   // control->yaw = clamp(-torquez_pwm, -32000, 32000);
@@ -209,23 +214,26 @@ void controllerINDI(control_t *control, const setpoint_t *setpoint,
   // }
   // control->controlMode = controlModeLegacy;
 
-//   control->tau_x = torquex_des;
-//   control->tau_y = torquey_des;
-//   control->tau_z = torquez_des;
-//   if (setpoint->mode.z == modeDisable) {
-//     control->T = setpoint->thrust;
-//   } else {
-//     control->T = thrust_des;
-//   }
+  //   control->tau_x = torquex_des;
+  //   control->tau_y = torquey_des;
+  //   control->tau_z = torquez_des;
+  //   if (setpoint->mode.z == modeDisable) {
+  //     control->T = setpoint->thrust;
+  //   } else {
+  //     control->T = thrust_des;
+  //   }
 
   // NOTE: this only applies in simulation
-  thrust_des = m * az_des; 
-  if (setpoint->mode.z == modeDisable) {
+  thrust_des = m * az_des;
+  if (setpoint->mode.z == modeDisable)
+  {
     control->thrustSi = 0.0f;
-    control->torque[0] =  0.0f;
-    control->torque[1] =  0.0f;
-    control->torque[2] =  0.0f;
-  } else {
+    control->torque[0] = 0.0f;
+    control->torque[1] = 0.0f;
+    control->torque[2] = 0.0f;
+  }
+  else
+  {
     control->thrustSi = thrust_des;
     control->torque[0] = torquex_des;
     control->torque[1] = -torquey_des; // NOTE: if use force torque mode, the sign of torquey is opposite
